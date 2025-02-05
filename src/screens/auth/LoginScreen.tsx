@@ -24,8 +24,8 @@ const LoginScreen: React.FC<Props> = ({ navigation }) => {
     try {
       await signInWithEmailAndPassword(auth, email, password);
       navigation.replace('MainApp');
-    } catch (error) {
-      Alert.alert('Error', error.message);
+    } catch (error: any) {
+      Alert.alert('Error', error.message || 'An error occurred');
     }
   };
 
