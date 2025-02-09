@@ -274,6 +274,7 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   Alert,
+  Image
 } from 'react-native';
 import { auth } from '../config/firebase';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -440,7 +441,13 @@ const QuizScreen: React.FC<Props> = ({ navigation, route }) => {
 
         <TouchableOpacity
           style={styles.button}
-          onPress={() => navigation.navigate('Dashboard')}
+          //onPress={() => navigation.navigate('Dashboard')}
+          onPress={() => {
+            navigation.reset({
+              index: 0,
+              routes: [{ name: 'Dashboard' }],
+            });
+          }}
         >
           <Text style={styles.buttonText}>Back to Dashboard</Text>
         </TouchableOpacity>
