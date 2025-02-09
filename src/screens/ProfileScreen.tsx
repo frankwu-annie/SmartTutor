@@ -1,4 +1,293 @@
+
 import React, { useState, useEffect } from 'react';
+import {
+  View,
+  Text,
+  StyleSheet,
+  TouchableOpacity,
+  Alert,
+  ScrollView,
+  ActivityIndicator,
+  TextInput,
+} from 'react-native';
+import { auth } from '../config/firebase';
+import { signOut } from 'firebase/auth';
+import { getDatabase, ref, get, set } from 'firebase/database';
+import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { NavigatorParamList } from '../navigation/types';
+
+type Props = {
+  navigation: NativeStackNavigationProp<NavigatorParamList, 'Profile'>;
+};
+
+type UserProfile = {
+  fullName: string;
+  email: string;
+  phoneNumber: string;
+  selectedGrade: string;
+};
+
+const ProfileScreen: React.FC<Props> = ({ navigation }) => {
+  const [loading, setLoading] = useState(true);
+  const [profile, setProfile] = useState<UserProfile | null>(null);
+  const [editing, setEditing] = useState(false);
+  const [editProfile, setEditProfile] = useState<UserProfile>({
+    fullName: '',
+    email: '',
+    phoneNumber: '',
+    selectedGrade: '',
+  });
+  const [subscription, setSubscription] = useState<{ status: string }>({ status: 'free' });
+
+  useEffect(() => {
+    loadProfile();
+    loadSubscription();
+  }, []);
+
+  const loadProfile = async () => {
+    try {
+      const userId = auth.currentUser?.uid;
+      if (!userId) return;
+
+      const db = getDatabase();
+      const profileRef = ref(db, `users/${userId}/profile`);
+      const snapshot = await get(profileRef);
+      const data = snapshot.val() || {};
+      
+      setProfile({
+        fullName: data.fullName || '',
+        email: auth.currentUser?.email || '',
+        phoneNumber: data.phoneNumber || '',
+        selectedGrade: data.selectedGrade || '',
+      });
+      setEditProfile({
+        fullName: data.fullName || '',
+        email: auth.currentUser?.email || '',
+        phoneNumber: data.phoneNumber || '',
+        selectedGrade: data.selectedGrade || '',
+      });
+      setLoading(false);
+    } catch (error) {
+      console.error('Error loading profile:', error);
+      setLoading(false);
+    }
+  };
+
+  const loadSubscription = async () => {
+    try {
+      const response = await fetch(`https://smart-ai-tutor.com/api/subscription/${auth.currentUser?.uid}`);
+      const data = await response.json();
+      setSubscription(data);
+    } catch (error) {
+      console.error('Error loading subscription:', error);
+    }
+  };
+
+  const handleSaveProfile = async () => {
+    try {
+      const userId = auth.currentUser?.uid;
+      if (!userId) return;
+
+      const db = getDatabase();
+      const profileRef = ref(db, `users/${userId}/profile`);
+      await set(profileRef, editProfile);
+      
+      setProfile(editProfile);
+      setEditing(false);
+      Alert.alert('Success', 'Profile updated successfully');
+    } catch (error) {
+      Alert.alert('Error', 'Failed to update profile');
+    }
+  };
+
+  const handleSignOut = async () => {
+    try {
+      await signOut(auth);
+      navigation.reset({
+        index: 0,
+        routes: [{ name: 'Login' }],
+      });
+    } catch (error) {
+      Alert.alert('Error', 'Failed to sign out');
+    }
+  };
+
+  if (loading) {
+    return (
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color="#007AFF" />
+      </View>
+    );
+  }
+
+  return (
+    <ScrollView style={styles.container}>
+      <View style={styles.card}>
+        <Text style={styles.title}>Profile</Text>
+        
+        {editing ? (
+          <View style={styles.form}>
+            <Text style={styles.label}>Full Name</Text>
+            <TextInput
+              style={styles.input}
+              value={editProfile.fullName}
+              onChangeText={(text) => setEditProfile({ ...editProfile, fullName: text })}
+            />
+            
+            <Text style={styles.label}>Phone Number</Text>
+            <TextInput
+              style={styles.input}
+              value={editProfile.phoneNumber}
+              onChangeText={(text) => setEditProfile({ ...editProfile, phoneNumber: text })}
+            />
+            
+            <Text style={styles.label}>Grade Level</Text>
+            <TextInput
+              style={styles.input}
+              value={editProfile.selectedGrade}
+              onChangeText={(text) => setEditProfile({ ...editProfile, selectedGrade: text })}
+            />
+            
+            <View style={styles.buttonGroup}>
+              <TouchableOpacity style={styles.button} onPress={handleSaveProfile}>
+                <Text style={styles.buttonText}>Save</Text>
+              </TouchableOpacity>
+              <TouchableOpacity 
+                style={[styles.button, styles.cancelButton]} 
+                onPress={() => setEditing(false)}
+              >
+                <Text style={styles.buttonText}>Cancel</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        ) : (
+          <View style={styles.profileInfo}>
+            <View style={styles.infoRow}>
+              <Text style={styles.label}>Name:</Text>
+              <Text style={styles.value}>{profile?.fullName || 'Not set'}</Text>
+            </View>
+            <View style={styles.infoRow}>
+              <Text style={styles.label}>Email:</Text>
+              <Text style={styles.value}>{profile?.email}</Text>
+            </View>
+            <View style={styles.infoRow}>
+              <Text style={styles.label}>Phone:</Text>
+              <Text style={styles.value}>{profile?.phoneNumber || 'Not set'}</Text>
+            </View>
+            <View style={styles.infoRow}>
+              <Text style={styles.label}>Grade:</Text>
+              <Text style={styles.value}>{profile?.selectedGrade || 'Not set'}</Text>
+            </View>
+            <View style={styles.infoRow}>
+              <Text style={styles.label}>Tier:</Text>
+              <Text style={styles.value}>{subscription.status === 'premium' ? 'Premium' : 'Free'}</Text>
+            </View>
+
+            <TouchableOpacity style={styles.button} onPress={() => setEditing(true)}>
+              <Text style={styles.buttonText}>Edit Profile</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+        
+        <TouchableOpacity style={styles.signOutButton} onPress={handleSignOut}>
+          <Text style={styles.signOutText}>Sign Out</Text>
+        </TouchableOpacity>
+      </View>
+    </ScrollView>
+  );
+};
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: '#f5f5f5',
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  card: {
+    backgroundColor: 'white',
+    margin: 15,
+    padding: 20,
+    borderRadius: 15,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  title: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    marginBottom: 20,
+  },
+  form: {
+    marginBottom: 20,
+  },
+  profileInfo: {
+    marginBottom: 20,
+  },
+  infoRow: {
+    flexDirection: 'row',
+    marginBottom: 10,
+  },
+  label: {
+    fontSize: 16,
+    fontWeight: '500',
+    marginRight: 10,
+    color: '#666',
+  },
+  value: {
+    fontSize: 16,
+    flex: 1,
+  },
+  input: {
+    borderWidth: 1,
+    borderColor: '#ddd',
+    borderRadius: 8,
+    padding: 10,
+    marginBottom: 15,
+    fontSize: 16,
+  },
+  buttonGroup: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: 10,
+  },
+  button: {
+    backgroundColor: '#007AFF',
+    padding: 15,
+    borderRadius: 8,
+    marginVertical: 10,
+    alignItems: 'center',
+  },
+  cancelButton: {
+    backgroundColor: '#666',
+  },
+  buttonText: {
+    color: 'white',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  signOutButton: {
+    backgroundColor: '#ff3b30',
+    padding: 15,
+    borderRadius: 8,
+    marginTop: 10,
+  },
+  signOutText: {
+    color: 'white',
+    textAlign: 'center',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+});
+
+export default ProfileScreen;
+
+/* import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -232,4 +521,5 @@ const styles = StyleSheet.create({
   },
 });
 
-export default ProfileScreen;
+export default ProfileScreen; */
+
